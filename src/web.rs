@@ -21,7 +21,15 @@ impl Read for Chan {
     }
 }
 
-fn cfg_path() -> PathBuf { super::ex("~/.config/buch/config.json") }
+fn cfg_path() -> PathBuf { super::paths::config_path() }
+#[cfg(unix)]
+fn write_private(p: &std::path::Path, b: &[u8]) -> std::io::Result<()> {
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(p).and_then(|mut f| std::io::Write::write_all(&mut f, b))?;
+    std::fs::set_permissions(p, std::fs::Permissions::from_mode(0o600))
+}
+#[cfg(not(unix))]
+fn write_private(p: &std::path::Path, b: &[u8]) -> std::io::Result<()> { std::fs::write(p, b) }
 pub fn cfg() -> Value { std::fs::read(cfg_path()).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or(json!({})) }
 pub fn s<'a>(v: &'a Value, k: &str) -> &'a str { v[k].as_str().unwrap_or("").trim() }
 
@@ -138,10 +146,8 @@ fn handle(st: Arc<St>, mut req: Request) {
             else if let Some(k) = b["key"].as_str().filter(|k| !k.trim().is_empty()) { c["key"] = json!(k.trim()); }
             let p = cfg_path();
             let r = (|| -> std::io::Result<()> {
-                use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
                 std::fs::create_dir_all(p.parent().unwrap())?;
-                std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&p).and_then(|mut f| std::io::Write::write_all(&mut f, serde_json::to_string_pretty(&c)?.as_bytes()))?;
-                std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o600))
+                write_private(&p, serde_json::to_string_pretty(&c)?.as_bytes())
             })();
             match r { Ok(_) => req.respond(jr(200, json!({"ok": true}))), Err(e) => req.respond(jr(500, json!({"error": e.to_string()}))) }
         }

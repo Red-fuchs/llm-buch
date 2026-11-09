@@ -20,7 +20,12 @@ pub fn raw() -> TextAnalyzer {
 
 pub fn reg(i: &Index) { i.tokenizers().register("de", analyzer()); i.tokenizers().register("raw", raw()); }
 
-pub fn mmap(p: &Path) -> Result<Mmap> { Ok(unsafe { Mmap::map(&File::open(p).with_context(|| p.display().to_string())?)? }) }
+pub fn mmap(p: &Path) -> Result<Mmap> {
+    let f = File::open(p).with_context(|| p.display().to_string())?;
+    // zero-length files cannot be mapped (BM25-only index has an empty vec.bin)
+    if f.metadata()?.len() == 0 { return Ok(memmap2::MmapOptions::new().len(8).map_anon()?.make_read_only()?); }
+    Ok(unsafe { Mmap::map(&f)? })
+}
 
 pub struct Db {
     pub dir: PathBuf,

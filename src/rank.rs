@@ -20,7 +20,8 @@ pub fn port_of(name: &str) -> u16 {
 pub fn base(name: &str) -> Option<String> {
     let url = format!("http://127.0.0.1:{}", port_of(name));
     if up(&url) { return Some(url); }
-    Command::new(super::ex(&format!("~/.local/bin/{name}"))).arg("start").output().ok()?;
+    let Some(sc) = super::paths::helper_script(name) else { eprintln!("note: optional helper server {name} is not available on this platform / not installed (macOS/Linux extra, see README)"); return None };
+    Command::new(sc).arg("start").output().ok()?;
     up(&url).then_some(url)
 }
 
@@ -57,7 +58,8 @@ pub fn heretic(wait: impl FnOnce()) -> Result<Ep> {
     let ok = || agent(1, 2).get(&format!("{url}/models")).call().is_ok_and(|r| r.status().is_success());
     if !ok() {
         wait();
-        let _ = Command::new(super::ex("~/.local/bin/buch-llm")).arg("start").output();
+        let Some(sc) = super::paths::helper_script("buch-llm") else { bail!("heretic server (buch-llm) is an optional macOS/Linux extra and not installed (unsupported on Windows)") };
+        let _ = Command::new(sc).arg("start").output();
         for _ in 0..60 { if ok() { break; } std::thread::sleep(std::time::Duration::from_secs(1)); }
         if !ok() { bail!("heretic-Server (buch-llm) nicht erreichbar"); }
     }

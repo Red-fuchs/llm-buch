@@ -1,7 +1,7 @@
 use anyhow::Result;
 use memmap2::Mmap;
 use rayon::prelude::*;
-use std::{io::{Read, Write}, os::unix::net::UnixStream, path::{Path, PathBuf}, time::{Duration, Instant}};
+use std::path::{Path, PathBuf};
 
 const D: usize = 384;
 const BB: usize = D / 8;
@@ -9,7 +9,7 @@ const QB: usize = D / 2;
 
 /// Lead-passage semantic layer: e5-small vectors, one per article (row = article id, or via lead.ids).
 /// lead.bin = sign bits of (v - mean), lead.q4 = int4 (offset 8, all-zero row = no lead). Query vectors come from the resident helper embd/serve.py.
-pub struct Sem { bin: Mmap, q4: Mmap, ids: Option<Mmap>, mean: Vec<f32>, s4: f32, sock: PathBuf }
+pub struct Sem { bin: Mmap, q4: Mmap, ids: Option<Mmap>, mean: Vec<f32>, s4: f32 }
 
 fn mm(p: &Path) -> Result<Mmap> { Ok(unsafe { Mmap::map(&std::fs::File::open(p)?)? }) }
 
@@ -18,37 +18,10 @@ impl Sem {
         let d = std::env::var("WIKI_LEAD").map(PathBuf::from).unwrap_or(dir.into());
         let meta: serde_json::Value = serde_json::from_slice(&std::fs::read(d.join("lead.meta.json")).ok()?).ok()?;
         Some(Self { bin: mm(&d.join("lead.bin")).ok()?, q4: mm(&d.join("lead.q4")).ok()?, ids: mm(&d.join("lead.ids")).ok(),
-            mean: serde_json::from_value(meta["mean"].clone()).ok()?, s4: meta["s4"].as_f64()? as f32, sock: dir.join("embd.sock") })
+            mean: serde_json::from_value(meta["mean"].clone()).ok()?, s4: meta["s4"].as_f64()? as f32 })
     }
 
-    fn rpc(&self, q: &str) -> Result<Vec<f32>> {
-        let mut s = UnixStream::connect(&self.sock)?;
-        s.set_read_timeout(Some(Duration::from_secs(10)))?;
-        s.write_all(q.replace('\n', " ").as_bytes())?; s.write_all(b"\n")?;
-        let mut b = vec![0u8; D * 4];
-        s.read_exact(&mut b)?;
-        Ok(b.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect())
-    }
-
-    /// Embed query via resident helper; starts it (detached, idle-exit) when not running.
-    pub fn embed(&self, q: &str) -> Result<Vec<f32>> {
-        if let Ok(v) = self.rpc(q) { return Ok(v); }
-        let home = std::env::var("HOME").unwrap_or_default();
-        let script = std::env::var("BUCH_EMBD").unwrap_or(format!("{home}/.local/share/buch/serve.py"));
-        let py = crate::py();
-        {
-            use std::os::unix::process::CommandExt;
-            let log = std::fs::File::create(self.sock.with_extension("log"))?;
-            std::process::Command::new(py).arg("-I").arg(&script).arg(&self.sock).env("HF_HUB_OFFLINE", "1")
-                .stdin(std::process::Stdio::null()).stdout(log.try_clone()?).stderr(log).process_group(0).spawn()?;
-        }
-        let t = Instant::now();
-        while t.elapsed() < Duration::from_secs(20) {
-            std::thread::sleep(Duration::from_millis(150));
-            if let Ok(v) = self.rpc(q) { return Ok(v); }
-        }
-        anyhow::bail!("embd helper unavailable")
-    }
+    fn embed(&self, q: &str) -> Result<Vec<f32>> { crate::dense::query_vec(q) }
 
     /// Top-n (article id, cosine) over all leads: Hamming scan -> top 200 -> int4 dot.
     pub fn search(&self, q: &str, n: usize) -> Result<Vec<(usize, f32)>> {

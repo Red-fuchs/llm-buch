@@ -6,6 +6,8 @@ use kern::{build, db, search};
 mod kern;
 mod web;
 mod dense;
+mod paths;
+mod pdf;
 mod think;
 mod rank;
 
@@ -15,10 +17,12 @@ const BASE: &str = "https://lib-lib.org";
 #[command(about = "RAG over the libertarian library lib-lib.org (German PDFs) with page citations")]
 struct Cli {
     /// Data dir: src/ (downloads), records.jsonl, works.json, idx/
-    #[arg(long, global = true, env = "BUCH_DIR", default_value = "~/AI-Model/buch")]
-    dir: String,
-    #[arg(long, global = true, env = "WIKI_MODEL", default_value = "~/AI-Model/models/minishlab/potion-multilingual-128M")]
-    model: String,
+    /// default: ~/AI-Model/buch if it exists, else the platform data dir (e.g. ~/.local/share/buch, %APPDATA%\buch)
+    #[arg(long, global = true, env = "BUCH_DIR")]
+    dir: Option<String>,
+    /// optional Model2Vec dir (legacy BM25+m2v fallback; not needed with `buch dense`)
+    #[arg(long, global = true, env = "WIKI_MODEL")]
+    model: Option<String>,
     #[command(subcommand)]
     cmd: Cmd,
 }
@@ -52,10 +56,11 @@ enum Cmd {
         /// skip LLM query expansion
         #[arg(long)] no_expand: bool,
     },
-    /// write every passage as JSON line {pid,title,page,text} (input for embd/dense.py)
+    /// write every passage as JSON line {pid,title,page,text}
     Dump { out: PathBuf },
-    /// embed all passages with a multilingual-e5 model dir (MLX; optional BUCH_GPU_WRAP queue wrapper) into <dir>/dense (default: e5-small from the HF cache)
-    Dense { model_dir: Option<PathBuf> },
+    /// embed all passages with multilingual-e5-small (candle, CPU; downloads ~470 MB from Hugging Face on first use) into <dir>/dense; BUCH_GPU_WRAP wraps the run in a queue command
+    Dense { model_dir: Option<PathBuf>, /// output dir (default <dir>/dense)
+        #[arg(long)] out: Option<PathBuf> },
     /// JSON lines on stdin ({"q":..,"k":3}) -> JSON lines {"hits":[{citation,text,..}],"ms"} (no LLM)
     Serve,
     /// Local web UI (127.0.0.1 only; optional port registry: BUCH_PORTS command)
@@ -75,12 +80,7 @@ enum Cmd {
         #[arg(long)] retr: Option<String> },
 }
 
-/// python for the embedding helper: BUCH_PY, else ~/.local/share/buch/venv, else python3
-pub fn py() -> String {
-    std::env::var("BUCH_PY").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| { let v = ex("~/.local/share/buch/venv/bin/python"); if v.exists() { v.display().to_string() } else { "python3".into() } })
-}
-
-pub fn ex(p: &str) -> PathBuf { PathBuf::from(p.replacen('~', &std::env::var("HOME").unwrap_or_default(), 1)) }
+pub use paths::ex;
 
 fn enc(p: &str) -> String {
     p.bytes().map(|b| if b.is_ascii_alphanumeric() || b"-_.~/".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect()
@@ -157,24 +157,10 @@ fn license(pages: &[(u64, String)]) -> String {
     "unbekannt".into()
 }
 
-fn helper() -> PathBuf {
-    let p = std::env::var("BUCH_PDFTEXT").map(|s| ex(&s)).unwrap_or(ex("~/.local/bin/buch-pdftext"));
-    if p.exists() { return p; }
-    let s = ex("~/.local/share/buch/pdftext.swift");
-    eprintln!("compiling {} -> {}", s.display(), p.display());
-    let ok = Command::new("swiftc").arg("-O").arg(&s).arg("-o").arg(&p).status().map(|s| s.success()).unwrap_or(false);
-    if !ok { eprintln!("pdftext helper missing"); std::process::exit(1); }
-    p
-}
-
-fn pages_of(pdf: &Path, h: &Path) -> Result<Vec<(u64, String)>> {
-    let o = Command::new(h).arg(pdf).output()?;
-    if !o.status.success() { bail!("pdftext failed"); }
-    String::from_utf8_lossy(&o.stdout).lines().map(|l| { let v: Value = serde_json::from_str(l)?; Ok((v["page"].as_u64().unwrap_or(0), v["text"].as_str().unwrap_or("").to_string())) }).collect()
-}
-
 fn build_idx(dir: &Path, src: &Path, model: &Path) -> Result<()> {
-    let h = helper();
+    let no_vec = !model.join("model.safetensors").exists();
+    if no_vec { eprintln!("no Model2Vec model: building BM25 index only (run `buch dense` for semantic search)"); }
+    fs::create_dir_all(dir)?;
     let mut recs = std::io::BufWriter::new(fs::File::create(dir.join("records.jsonl"))?);
     let mut works = serde_json::Map::new();
     let mut n = 0;
@@ -183,7 +169,7 @@ fn build_idx(dir: &Path, src: &Path, model: &Path) -> Result<()> {
         let Some(p) = rel(b["downloads"]["pdf"].as_str().unwrap_or("")) else { eprintln!("skip (no PDF): {author}: {title_raw}"); continue };
         let f = src.join(&p);
         if !f.exists() { eprintln!("skip (not fetched): {}", p.display()); continue; }
-        let pages = match pages_of(&f, &h) { Ok(p) => p, Err(e) => { eprintln!("skip {}: {e}", p.display()); continue } };
+        let pages = match pdf::pages(&f) { Ok(p) => p, Err(e) => { eprintln!("skip {}: {e}", p.display()); continue } };
         let title = format!("{}: {}", short_author(author), title_raw);
         let url = format!("{BASE}/{}", enc(&p.to_string_lossy()));
         // running headers/footers: first/last 2 non-empty lines whose digit-normalised form recurs on >=20% of pages
@@ -222,7 +208,7 @@ fn build_idx(dir: &Path, src: &Path, model: &Path) -> Result<()> {
     drop(recs);
     fs::write(dir.join("works.json"), serde_json::to_vec_pretty(&Value::Object(works))?)?;
     eprintln!("{n} page records; indexing...");
-    build::run(&[dir.join("records.jsonl")], &dir.join("idx"), model, false)
+    build::run(&[dir.join("records.jsonl")], &dir.join("idx"), model, no_vec)
 }
 
 #[derive(Clone)]
@@ -393,7 +379,8 @@ pub fn answer_body(model: &str, q: &str, cs: &[Cite], stream: bool) -> Value {
 
 fn main() -> Result<()> {
     let c = Cli::parse();
-    let (dir, model) = (ex(&c.dir), ex(&c.model));
+    let dir = c.dir.as_deref().map(ex).unwrap_or_else(paths::data_dir);
+    let model = c.model.as_deref().map(ex).unwrap_or_else(|| ex("~/AI-Model/models/minishlab/potion-multilingual-128M"));
     match c.cmd {
         Cmd::Fetch { src } => fetch(&src.map(|s| ex(&s)).unwrap_or(dir.join("src")))?,
         Cmd::Build { src } => build_idx(&dir, &src.map(|s| ex(&s)).unwrap_or(dir.join("src")), &model)?,
@@ -448,21 +435,19 @@ fn main() -> Result<()> {
                 writeln!(so, "{o}")?; so.flush()?;
             }
         }
-        Cmd::Dense { model_dir } => {
-            let home = std::env::var("HOME")?;
-            let md = match model_dir { Some(m) => m, None => {
-                let o = Command::new("sh").arg("-c").arg(format!("ls -d {home}/.cache/huggingface/hub/models--intfloat--multilingual-e5-small/snapshots/* | head -1")).output()?;
-                PathBuf::from(String::from_utf8_lossy(&o.stdout).trim()) } };
-            let tmp = dir.join("passages.jsonl");
-            { let (db, _) = open(&dir, &model)?; let mut w = std::io::BufWriter::new(fs::File::create(&tmp)?);
-              for pid in 0..db.npass { if let Some((sec, t)) = db.store.get(pid) { writeln!(w, "{}", json!({"pid": pid, "title": db.art_of(pid).title, "page": sec, "text": t}))?; } } }
-            let script = std::env::var("BUCH_DENSE_PY").unwrap_or(format!("{home}/.local/share/buch/dense.py"));
-            // optional GPU queue wrapper (BUCH_GPU_WRAP="gpu-run -n buch-embed --ram 4"), plain run otherwise
+        Cmd::Dense { model_dir, out } => {
+            let out = out.unwrap_or_else(|| dir.join("dense"));
             let wrap: Vec<String> = std::env::var("BUCH_GPU_WRAP").unwrap_or_default().split_whitespace().map(String::from).collect();
-            let mut cmd = match wrap.split_first() { Some((w, a)) => { let mut c = Command::new(w); c.args(a).arg(py()); c } None => Command::new(py()) };
-            let st = cmd.args(["-I", &script, "embed"]).arg(&md).arg(&tmp).arg(dir.join("dense")).status()?;
-            fs::remove_file(&tmp)?;
-            if !st.success() { bail!("embedding failed"); }
+            if let (Some((w, a)), None) = (wrap.split_first(), std::env::var_os("BUCH_WRAPPED")) {
+                let mut cmd = Command::new(w);
+                cmd.args(a).arg(std::env::current_exe()?).arg("--dir").arg(&dir).arg("dense").arg("--out").arg(&out).env("BUCH_WRAPPED", "1");
+                if let Some(m) = model_dir { cmd.arg(m); }
+                if !cmd.status()?.success() { bail!("embedding failed"); }
+                return Ok(());
+            }
+            let (db, _) = open(&dir, &model)?;
+            let texts: Vec<String> = (0..db.npass).map(|pid| { let (_, t) = db.store.get(pid).unwrap_or_default(); format!("{}. {t}", db.art_of(pid).title.split(": ").next().unwrap_or("")) }).collect();
+            dense::embed_passages(&texts, &out, model_dir)?;
         }
         Cmd::Dump { out } => {
             let (db, _) = open(&dir, &model)?;

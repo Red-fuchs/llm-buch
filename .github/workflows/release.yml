@@ -1,0 +1,41 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, ext: tar.gz }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, ext: zip }
+          - { os: macos-14, target: aarch64-apple-darwin, ext: tar.gz }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "${{ matrix.target }}" }
+      - run: cargo build --release --target ${{ matrix.target }}
+      - name: Package (unix)
+        if: matrix.ext == 'tar.gz'
+        shell: bash
+        run: |
+          d=buch-${{ github.ref_name }}-${{ matrix.target }}
+          mkdir "$d" && cp target/${{ matrix.target }}/release/buch README.md LICENSE "$d"/
+          tar czf "$d.tar.gz" "$d"
+          echo "ASSET=$d.tar.gz" >> "$GITHUB_ENV"
+      - name: Package (windows)
+        if: matrix.ext == 'zip'
+        shell: pwsh
+        run: |
+          $d = "buch-${{ github.ref_name }}-${{ matrix.target }}"
+          New-Item -ItemType Directory $d | Out-Null
+          Copy-Item "target/${{ matrix.target }}/release/buch.exe", README.md, LICENSE $d
+          Compress-Archive -Path $d -DestinationPath "$d.zip"
+          "ASSET=$d.zip" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ env.ASSET }}

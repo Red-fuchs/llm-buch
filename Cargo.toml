@@ -23,3 +23,11 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 tantivy = "0.27.0"
 tokenizers = { version = "0.23.2", default-features = false, features = ["onig"] }
 zstd = "0.14.3"
+dirs = "6"
+pdf-extract = "0.9"
+candle-core = "0.11"
+candle-nn = "0.11"
+candle-transformers = "0.11"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+candle-core = { version = "0.11", features = ["accelerate"] }

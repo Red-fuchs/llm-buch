@@ -1,0 +1,3 @@
+# candle's gemm-f16 needs the fp16 extension on 64-bit ARM Linux (default aarch64 targets lack it)
+[target.aarch64-unknown-linux-gnu]
+rustflags = ["-C", "target-feature=+fp16"]
