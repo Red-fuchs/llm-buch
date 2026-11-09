@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Freie Bibliothek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{--ground:#F6F6F3;--ink:#1C1C1A;--accent:#1F4E79;--tint:#EAF0F6;--line:#E2E2DC;--mute:#5F5F5A;--card:#fff;--sans:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;--serif:"Source Serif 4",Georgia,serif;--mono:"SF Mono",Menlo,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);min-height:100vh;display:flex;flex-direction:column}
+a{color:var(--accent)}a:hover{color:#15385A}
+header{background:var(--card);border-bottom:1px solid var(--line)}
+.wrap{max-width:1240px;margin:0 auto;padding:14px 20px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;flex:1 1 auto;flex-wrap:wrap}
+.brand b{font-size:18px;letter-spacing:-.01em}.brand span{font-size:13px;color:var(--mute)}
+nav{display:flex;flex-wrap:wrap;gap:4px}
+nav a{text-decoration:none;padding:10px 14px;border-radius:8px;color:#3A3A36;font-size:14px}
+nav a.on{background:var(--tint);color:var(--accent);font-weight:600}
+main{flex:1 1 auto;max-width:1240px;width:100%;margin:0 auto;padding:24px 20px}
+.view{display:none}.view.on{display:block}
+#chat.on{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.conv{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:20px}
+aside{flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:14px}
+aside h2{margin:0;font-size:14px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--mute)}
+.q{align-self:flex-end;max-width:80%;background:var(--accent);color:#fff;padding:12px 16px;border-radius:14px 14px 4px 14px;line-height:1.5;white-space:pre-wrap}
+.ans{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px 22px;display:flex;flex-direction:column;gap:14px}
+.ans .meta{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute)}
+.ans p{margin:0;line-height:1.65}
+.notice{background:#FFF4DD;border:1px solid #F0DDB0;border-radius:10px;padding:12px 14px;font-size:14px;color:#4A3000;line-height:1.5}
+.notice a{color:#4A3000;font-weight:600}
+.err{background:#FBEAEA;border-color:#E8BEBE;color:#6A1B1B}
+.badge{margin-left:3px;padding:0 6px;min-width:22px;height:22px;border-radius:6px;border:1px solid #C9D6E3;background:var(--tint);color:var(--accent);font:600 12px var(--sans);cursor:pointer;vertical-align:2px}
+form.ask{background:var(--card);border:1px solid #D4D4CC;border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:8px}
+form.ask .row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1 1 auto;min-width:0;resize:none;border:0;outline:none;padding:8px;font:16px/1.5 var(--sans);color:var(--ink);background:transparent}
+.send{width:44px;height:44px;flex:0 0 auto;border-radius:10px;border:0;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.send:disabled{opacity:.5}
+.hint{display:flex;flex-wrap:wrap;gap:8px 16px;padding:0 8px 4px;font-size:13px;color:var(--mute)}
+.src{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.src.hl{border:2px solid var(--accent);padding:17px}
+.src .head{display:flex;gap:12px;align-items:flex-start}
+.num{flex:0 0 auto;width:26px;height:26px;border-radius:7px;background:var(--tint);color:var(--accent);font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center}
+.src .t{font-weight:600;font-size:15px}.src .s{font-size:13px;color:var(--mute)}
+blockquote{margin:0;padding:0 0 0 14px;border-left:3px solid #C9D6E3;font:16px/1.6 var(--serif);color:#2A2A27}
+.foot{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;font-size:13px;color:var(--mute)}
+.lic{padding:3px 8px;border:1px solid var(--line);border-radius:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:22px;display:flex;flex-direction:column;gap:16px;max-width:760px}
+.card h2{margin:0;font-size:18px}
+.modes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.mode{min-height:96px;text-align:left;padding:14px;border-radius:12px;border:1px solid var(--line);background:#fff;cursor:pointer;display:flex;flex-direction:column;gap:6px;font-family:var(--sans);color:var(--ink)}
+.mode.on{border:2px solid var(--accent);background:var(--tint);padding:13px}
+.mode b{font-size:15px}.mode span{font-size:13px;line-height:1.45;color:var(--mute)}
+.form{display:flex;flex-direction:column;gap:12px;padding:16px;background:#F8F8F5;border-radius:12px}
+.form label{font-size:13px;font-weight:600;color:#3A3A36}
+.form input{min-height:44px;padding:0 12px;border:1px solid #D4D4CC;border-radius:8px;font:15px var(--mono);background:#fff;color:var(--ink);width:100%}
+.form select{min-height:44px;padding:0 10px;border:1px solid #D4D4CC;border-radius:8px;font:15px var(--sans);background:#fff;color:var(--ink);width:100%}
+.f{display:flex;flex-direction:column;gap:6px}.f small{font-size:12px;color:var(--mute)}
+.btn{min-height:44px;padding:0 16px;border-radius:8px;border:0;background:var(--accent);color:#fff;font:600 14px var(--sans);cursor:pointer}
+.btn.alt{background:#fff;color:var(--ink);border:1px solid #D4D4CC;font-weight:500}
+.acts{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.ok{color:#2E5E3A;font-size:13px}.bad{color:#7A2E2E;font-size:13px}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+th,td{text-align:left;padding:10px 14px;font-size:14px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);background:#FAFAF7}
+.tw{overflow-x:auto}
+footer{border-top:1px solid var(--line);background:var(--card)}
+footer .wrap{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--mute)}
+.empty{color:var(--mute);font-size:14px;line-height:1.6}
+@media(max-width:640px){.wrap,main{padding-left:16px;padding-right:16px}.modes{grid-template-columns:1fr}.q{max-width:92%}.ans{padding:16px}}
+</style>
+</head>
+<body>
+<header><div class="wrap bar">
+  <div class="brand">
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#1F4E79" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5V5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M8 7h7"/><path d="M8 11h5"/></svg>
+    <b>Freie Bibliothek</b><span id="sub">Werke von lib-lib.org · Antworten mit Quelle</span>
+  </div>
+  <nav aria-label="Hauptnavigation"><a href="#chat" data-v="chat">Chat</a><a href="#buecher" data-v="buecher">Bibliothek</a><a href="#modell" data-v="modell">Modell</a></nav>
+</div></header>
+
+<main>
+<section id="chat" class="view">
+  <div class="conv">
+    <div id="log" class="empty">Stell eine Frage – die Antwort kommt nur aus den Büchern, mit Seitenangabe.</div>
+    <form class="ask" id="f">
+      <label for="q" style="position:absolute;width:1px;height:1px;overflow:hidden">Frage an die Bibliothek</label>
+      <div class="row">
+        <textarea id="q" rows="2" placeholder="Frag die Bücher … z. B. „Was sagt Hoppe zur Demokratie?“"></textarea>
+        <button class="send" id="go" aria-label="Frage senden"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg></button>
+      </div>
+      <div class="hint"><span id="mdl">Modell: –</span><span>Antworten nur aus den Büchern – steht es nicht drin, sagt der Bot das.</span></div>
+    </form>
+  </div>
+  <aside aria-label="Quellen"><h2>Quellen</h2><div id="terms" class="empty" style="font-size:12px;margin:-4px 0 10px"></div><div id="src" class="empty">Noch keine Frage gestellt.</div></aside>
+</section>
+
+<section id="buecher" class="view"><h1 style="margin:0 0 16px;font-size:28px;letter-spacing:-.02em">Bibliothek</h1>
+  <div class="tw"><table><thead><tr><th>Autor</th><th>Werk</th><th>Jahr</th><th>Übersetzung</th><th>Lizenz</th><th>Seiten</th><th></th></tr></thead><tbody id="books"></tbody></table></div>
+  <p class="empty">Seitenangaben beziehen sich auf die PDF-Seite; die gedruckte Seite kann bei einzelnen Werken um 1 abweichen.</p>
+</section>
+
+<section id="modell" class="view"><h1 style="margin:0 0 16px;font-size:28px;letter-spacing:-.02em">Sprachmodell anschließen</h1>
+  <div class="card">
+    <div class="form">
+      <div class="f"><label for="ans">Antwortmodell</label><select id="ans"><option value="lfm3">Schnell: LFM3-1.7B (lokal, startet automatisch)</option><option value="big">Groß: eigenes Modell (Einstellungen unten)</option><option value="heretic">Gemma 4 E4B Heretic (Test)</option></select></div>
+      <div class="f"><label for="rr">Treffer sortieren</label><select id="rr"><option value="d1">d1-2B (schnell, lokal)</option><option value="lfm3">LFM3-1.7B Ja/Nein pro Treffer</option><option value="lfm3list">LFM3-1.7B Rangliste</option><option value="big">Großes Modell, Rangliste</option><option value="none">aus (nur Suche)</option></select><small>Die Suche holt 40 Kandidaten, die Sortierung wählt die besten 10 für die Antwort.</small></div>
+    </div>
+    <h2 style="font-size:15px;margin:4px 0 0">Großes Modell (optional)</h2>
+    <div class="modes" role="radiogroup" aria-label="Art des Modells" id="modes"></div>
+    <div class="form">
+      <div class="f"><label for="ep">Adresse (OpenAI-kompatibel)</label><input id="ep" type="text" autocomplete="off" spellcheck="false"></div>
+      <div class="f"><label for="md">Modell (leer = erstes verfügbares)</label><input id="md" type="text" autocomplete="off" spellcheck="false"></div>
+      <div class="f" id="kf"><label for="key">API-Schlüssel</label><input id="key" type="password" autocomplete="off" placeholder="sk-…"><small id="kh">Bleibt nur auf deinem Rechner (~/.config/buch/config.json). Deine Fragen gehen an den gewählten Anbieter.</small></div>
+      <div class="acts"><button class="btn" id="test" type="button">Verbindung testen</button><button class="btn alt" id="save" type="button">Speichern</button><button class="btn alt" id="clr" type="button">Schlüssel löschen</button><span id="msg"></span></div>
+    </div>
+  </div>
+</section>
+</main>
+<footer><div class="wrap"><span>Freie Software · Übersetzungen von lib-lib.org</span><span>lokal auf 127.0.0.1</span></div></footer>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const MODES=[{id:'local',t:'Lokal',d:'LM Studio, Ollama, llama.cpp – alles bleibt auf deinem Rechner',ep:'http://localhost:1234/v1',key:false},
+ {id:'cloud',t:'Cloud',d:'OpenRouter, Mistral u. a. – auch für schwache Rechner',ep:'https://openrouter.ai/api/v1',key:true},
+ {id:'own',t:'Eigener Server',d:'Jeder Dienst mit OpenAI-kompatibler Schnittstelle',ep:'https://',key:true}];
+let mode='local',cfg={},books=[];
+
+function view(){const v=(location.hash||'#chat').slice(1);const id=['chat','buecher','modell'].includes(v)?v:'chat';
+ document.querySelectorAll('.view').forEach(e=>e.classList.toggle('on',e.id===id));
+ document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('on',a.dataset.v===id));}
+addEventListener('hashchange',view);
+
+async function j(u,o){const r=await fetch(u,o);return r.json()}
+async function loadCfg(){cfg=await j('/api/config');$('#ep').value=cfg.endpoint;$('#md').value=cfg.model||'';$('#ans').value=cfg.answer||'lfm3';$('#rr').value=cfg.rerank||'d1';
+ $('#kh').textContent=cfg.key_set?'Schlüssel gespeichert ('+cfg.key_hint+'). Leer lassen = behalten.':'Bleibt nur auf deinem Rechner (~/.config/buch/config.json). Deine Fragen gehen an den gewählten Anbieter.';
+ mode=cfg.endpoint.includes('localhost')||cfg.endpoint.includes('127.0.0.1')?'local':(cfg.endpoint.includes('openrouter')?'cloud':'own');drawModes();
+ $('#mdl').textContent='Antwort: '+(cfg.answer==='big'?(cfg.model||'großes Modell'):cfg.answer==='heretic'?'Gemma 4 E4B Heretic':'LFM3-1.7B')+' · Sortierung: '+({d1:'d1-2B',lfm3:'LFM3',lfm3list:'LFM3 (Liste)',big:'großes Modell',none:'aus'}[cfg.rerank]||cfg.rerank)}
+function drawModes(){$('#modes').innerHTML=MODES.map(m=>`<button type="button" role="radio" aria-checked="${m.id===mode}" class="mode${m.id===mode?' on':''}" data-m="${m.id}"><b>${m.t}</b><span>${m.d}</span></button>`).join('');
+ $('#kf').style.display=(MODES.find(m=>m.id===mode).key||cfg.key_set)?'':'none';
+ document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>{mode=b.dataset.m;const m=MODES.find(x=>x.id===mode);$('#ep').value=m.ep;drawModes()})}
+const body=()=>({endpoint:$('#ep').value,model:$('#md').value,key:$('#key').value,answer:$('#ans').value,rerank:$('#rr').value});
+$('#test').onclick=async()=>{$('#msg').className='';$('#msg').textContent='teste …';
+ const r=await j('/api/test',{method:'POST',body:JSON.stringify(body())});
+ $('#msg').className=r.ok?'ok':'bad';$('#msg').textContent=r.ok?'Verbunden · '+(r.models.length?r.models.length+' Modell(e): '+r.models.slice(0,3).join(', '):'keine Modelle gemeldet'):'Nicht erreichbar: '+r.error};
+$('#save').onclick=async()=>{await j('/api/config',{method:'POST',body:JSON.stringify(body())});$('#key').value='';await loadCfg();$('#msg').className='ok';$('#msg').textContent='Gespeichert'};
+$('#clr').onclick=async()=>{await j('/api/config',{method:'POST',body:JSON.stringify({clear_key:true})});await loadCfg();$('#msg').className='ok';$('#msg').textContent='Schlüssel gelöscht'};
+
+async function loadBooks(){books=await j('/api/books');$('#sub').textContent=books.length+' Werke von lib-lib.org · Antworten mit Quelle';
+ $('#books').innerHTML=books.map(b=>`<tr><td>${esc(b.author)}</td><td>${esc(b.work)}</td><td>${esc(b.year)}</td><td>${esc(b.translator||'')}</td><td><span class="lic">${esc(b.license)}</span></td><td>${b.pages}</td><td><a href="${esc(b.pdf)}" target="_blank" rel="noopener">PDF</a></td></tr>`).join('')}
+
+let srcs=[],terms='';
+function drawSrc(hl){ $('#src').className='';
+ $('#src').innerHTML=srcs.map((s,i)=>{const q=s.text.length>650?s.text.slice(0,650).replace(/\s+\S*$/,'')+' …':s.text;
+ return `<div class="src${hl===i?' hl':''}" id="s${i+1}"><div class="head"><span class="num">${i+1}</span><div><div class="t">${esc(s.work)}</div><div class="s">${esc(s.author)} · ${esc(s.year)} · S. ${esc(s.page)}</div></div></div>
+ <blockquote>„${esc(q)}“</blockquote>${s.translator?`<span class="s">Übersetzung: ${esc(s.translator)}</span>`:''}
+ <div class="foot"><span class="lic">Lizenz: ${esc(s.license)}</span><a href="${esc(s.url)}" target="_blank" rel="noopener">PDF auf Seite ${esc(s.page)} öffnen</a></div></div>`}).join('')||'<span class="empty">Keine Treffer.</span>'}
+function pick(i){drawSrc(i);const e=$('#s'+(i+1));e&&e.scrollIntoView({behavior:'smooth',block:'nearest'})}
+function render(txt){ // escape, then citation strings -> badges, paragraphs, **bold**
+ let h=esc(txt).replace(/\[([^\[\]]+?S\.\s*\d+[^\[\]]*)\]/g,(m,inner)=>{
+  const out=inner.split(';').map(c=>{c=c.trim();const i=srcs.findIndex(s=>s.citation==='['+c.replace(/&amp;/g,'&')+']'||s.citation==='['+c+']');return i<0?null:`<button type="button" class="badge" data-i="${i}" aria-label="Quelle ${i+1} anzeigen">${i+1}</button>`});
+  return out.every(x=>x)?out.join(''):m});
+ return h.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').split(/\n{2,}/).map(p=>'<p>'+p.replace(/\n/g,'<br>')+'</p>').join('')}
+$('#log').addEventListener('click',e=>{const b=e.target.closest('.badge');if(b)pick(+b.dataset.i)});
+
+async function ask(q){
+ const log=$('#log');if(log.classList.contains('empty')){log.className='';log.innerHTML=''}
+ log.insertAdjacentHTML('beforeend',`<div class="q">${esc(q)}</div><article class="ans"><div class="meta">Suche in den Büchern …</div><div class="txt"></div></article>`);
+ const art=log.lastElementChild,meta=art.querySelector('.meta'),txt=art.querySelector('.txt');art.scrollIntoView({block:'nearest'});
+ $('#terms').textContent='';$('#go').disabled=true;let acc='',got=false,summary='';
+ try{const r=await fetch('/api/ask',{method:'POST',body:JSON.stringify({q})});
+  const rd=r.body.getReader(),dec=new TextDecoder();let buf='';
+  const on=(ev,d)=>{
+   if(ev==='status'){meta.textContent=d}
+   else if(ev==='warn'){$('#terms').insertAdjacentHTML('beforeend','<br>⚠ '+esc(d))}
+   else if(ev==='timing'){summary+=' · '+(d.before_answer/1000).toFixed(1)+' s Suche'}
+   else if(ev==='terms'){terms=d;$('#terms').textContent='Gesucht nach: '+d}
+   else if(ev==='passages'){srcs=d;got=true;const w=new Set(d.map(s=>s.title)).size;summary=d.length+' Abschnitte aus '+w+(w===1?' Werk':' Werken')+' (nach Relevanz sortiert)';meta.textContent=summary;drawSrc(-1)}
+   else if(ev==='thinking'){txt.innerHTML='<div class="meta">denkt nach …</div>'}
+   else if(ev==='reset'){acc='';txt.innerHTML=''}
+   else if(ev==='token'){if(!acc)meta.textContent=summary;acc+=d;txt.innerHTML=render(acc)}
+   else if(ev==='nollm'){meta.textContent=summary+' · Kein Modell verbunden';txt.innerHTML=`<div class="notice"><b>Kein Modell verbunden.</b> Es werden nur die Fundstellen rechts gezeigt (${esc(d)}). <a href="#modell">Modell einstellen</a></div>`}
+   else if(ev==='error'){txt.insertAdjacentHTML('beforeend',`<div class="notice err">Fehler: ${esc(d)}</div>`)}
+   else if(ev==='done'&&acc){txt.innerHTML=render(acc)}};
+  for(;;){const {done,value}=await rd.read();if(done)break;buf+=dec.decode(value,{stream:true});
+   let k;while((k=buf.indexOf('\n\n'))>=0){const blk=buf.slice(0,k);buf=buf.slice(k+2);
+    const ev=(blk.match(/^event: (.*)$/m)||[])[1],dt=(blk.match(/^data: (.*)$/m)||[])[1];if(ev&&dt)on(ev,JSON.parse(dt))}}
+ }catch(e){txt.insertAdjacentHTML('beforeend',`<div class="notice err">Fehler: ${esc(e.message)}</div>`)}
+ if(!got)meta.textContent='Keine Antwort';$('#go').disabled=false}
+$('#f').onsubmit=e=>{e.preventDefault();const q=$('#q').value.trim();if(!q||$('#go').disabled)return;$('#q').value='';ask(q)};
+$('#q').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();$('#f').requestSubmit()}});
+view();loadCfg();loadBooks();
+</script>
+</body>
+</html>

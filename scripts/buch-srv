@@ -1,0 +1,38 @@
+#!/bin/zsh
+# buch model servers (127.0.0.1, idle self-stop). Invoked as buch-chat | buch-rerank:
+[[ -f ~/.config/buch/env ]] && { set -a; source ~/.config/buch/env; set +a; }   # optional: LLAMA_SERVER, BUCH_MLX_LM, BUCH_PY, BUCH_PORTS ...
+#   buch-chat   = LFM3-1.7B Q8 via llama.cpp llama-server (OpenAI /v1/chat/completions, thinking off)
+#   buch-rerank = Liquid d1-2B decision model via buch-rerank-srv.py (POST /rank, noul per passage)
+# Optional extras (not needed for the default setup). Env: BUCH_PORTS (port registry cmd), LLAMA_SERVER, BUCH_PY
+# usage: buch-chat|buch-rerank start|stop|status|log     env: BUCH_IDLE (s, default 600)
+N=${0:t}
+IDLE=${BUCH_IDLE:-600}
+LOG=$HOME/Library/Logs/$N.log
+PIDF=$HOME/.cache/$N.pid
+LM=${BUCH_LM_DIR:-$HOME/AI-Model/models/LiquidAI}
+case $N in
+buch-chat)
+  PORT=$(${BUCH_PORTS:-false} port buch-chat 2>/dev/null || echo 8102)
+  CMD=(${LLAMA_SERVER:-llama-server} -m $LM/LFM3-1.7B-GGUF/LFM3-1.7B-Q8_0.gguf --host 127.0.0.1 --port $PORT -c 49152 -np 4 -ngl 99 --jinja --reasoning off --alias lfm3 --no-webui)
+  HEALTH=/health ;;
+buch-rerank)
+  PORT=$(${BUCH_PORTS:-false} port buch-rerank 2>/dev/null || echo 8103)
+  CMD=(${BUCH_PY:-$HOME/.local/share/buch/venv/bin/python} $HOME/.local/bin/buch-rerank-srv.py $PORT)
+  HEALTH=/health ;;
+*) echo "call as buch-chat or buch-rerank"; exit 2 ;;
+esac
+pid() { [[ -f $PIDF ]] && kill -0 $(<$PIDF) 2>/dev/null && cat $PIDF }
+case $1 in
+start)
+  pid >/dev/null && { echo "running on :$PORT (pid $(pid))"; exit 0 }
+  nohup $CMD >$LOG 2>&1 &
+  echo $! >$PIDF
+  for i in {1..50}; do curl -sf 127.0.0.1:$PORT$HEALTH >/dev/null && break; pid >/dev/null || break; sleep 0.5; done
+  pid >/dev/null || { echo "failed, see $LOG"; exit 1 }
+  S=$(<$PIDF); nohup zsh -c "while kill -0 $S 2>/dev/null; do (( \$(date +%s) - \$(stat -f %m $LOG) > $IDLE )) && { kill $S; echo \"idle stop \$(date)\" >>$LOG; break }; sleep 30; done" >/dev/null 2>&1 &
+  echo "ready on http://127.0.0.1:$PORT (idle stop after ${IDLE}s)" ;;
+stop) p=$(pid) && kill $p && echo "stopped $p" || echo "not running" ;;
+status) p=$(pid) && echo "running on :$PORT (pid $p)" || { echo "not running"; exit 1 } ;;
+log) tail -30 $LOG ;;
+*) echo "usage: $N start|stop|status|log"; exit 2 ;;
+esac

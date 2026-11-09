@@ -1,0 +1,26 @@
+#!/bin/zsh
+# Gemma-4 E4B heretic as OpenAI server for buch (mlx_lm.server), port 8101 (or `$BUCH_PORTS port buch-llm`).
+[[ -f ~/.config/buch/env ]] && { set -a; source ~/.config/buch/env; set +a; }   # optional: LLAMA_SERVER, BUCH_MLX_LM, BUCH_PY, BUCH_PORTS ...
+# Stops itself after IDLE seconds without requests (log untouched).  usage: buch-llm start|stop|status|log
+M=${BUCH_LLM_MODEL:-$HOME/AI-Model/models/zecanard/gemma-4-E4B-heretic-nothink}
+PORT=$(${BUCH_PORTS:-false} port buch-llm 2>/dev/null || echo 8101)
+IDLE=${BUCH_LLM_IDLE:-600}
+LOG=$HOME/Library/Logs/buch-heretic.log
+PY=${BUCH_MLX_LM:-mlx_lm.server}
+PIDF=$HOME/.cache/buch-llm.pid
+pid() { [[ -f $PIDF ]] && kill -0 $(<$PIDF) 2>/dev/null && cat $PIDF }
+case $1 in
+start)
+  pid >/dev/null && { echo "running on :$PORT (pid $(pid))"; exit 0 }
+  nohup $PY --model $M --host 127.0.0.1 --port $PORT --chat-template-args '{"enable_thinking":false}' --temp 0.3 >$LOG 2>&1 &
+  echo $! >$PIDF
+  for i in {1..90}; do curl -sf 127.0.0.1:$PORT/v1/models >/dev/null && break; sleep 1; done
+  pid >/dev/null || { echo "failed, see $LOG"; exit 1 }
+  # idle watchdog: mlx_lm logs every request, so log mtime = last activity
+  S=$(<$PIDF); nohup zsh -c "while kill -0 $S 2>/dev/null; do (( \$(date +%s) - \$(stat -f %m $LOG) > $IDLE )) && { kill $S; echo \"idle stop \$(date)\" >>$LOG; break }; sleep 30; done" >/dev/null 2>&1 &
+  echo "ready on http://127.0.0.1:$PORT/v1 (idle stop after ${IDLE}s)" ;;
+stop) p=$(pid) && kill $p && echo "stopped $p" || echo "not running" ;;
+status) p=$(pid) && echo "running on :$PORT (pid $p)" || { echo "not running"; exit 1 } ;;
+log) tail -30 $LOG ;;
+*) echo "usage: buch-llm start|stop|status|log"; exit 2 ;;
+esac

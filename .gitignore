@@ -1,0 +1,10 @@
+target/
+*.pdf
+idx/
+dense*/
+records.jsonl
+works.json
+config.json
+*.log
+__pycache__/
+.DS_Store
