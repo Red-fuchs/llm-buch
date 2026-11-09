@@ -75,7 +75,7 @@ pub fn model_dir() -> Result<PathBuf> {
 /// BUCH_DL_LIMIT = MB/s cap (default: unlimited)
 fn download(url: &str, out: &Path) -> Result<()> {
     let lim: f64 = std::env::var("BUCH_DL_LIMIT").ok().and_then(|s| s.parse().ok()).unwrap_or(0.0) * 1e6;
-    let ag: ureq::Agent = ureq::Agent::config_builder().timeout_global(None).timeout_recv_body(Some(Duration::from_secs(60))).build().into();
+    let ag: ureq::Agent = ureq::Agent::config_builder().timeout_global(None).timeout_recv_body(None).build().into();
     let resp = ag.get(url).call().with_context(|| format!("download {url}"))?;
     if !resp.status().is_success() { bail!("download {url}: HTTP {}", resp.status()); }
     let tmp = out.with_extension("part");
